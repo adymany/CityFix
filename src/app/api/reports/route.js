@@ -8,7 +8,7 @@ function cleanImageData(imageUrl) {
   // If it's a data URL, check if it's reasonable size
   if (imageUrl.startsWith('data:image/')) {
     // If it's too long, it might be corrupted
-    if (imageUrl.length > 100000) { // 100KB limit
+    if (imageUrl.length > 1000000) { // Increase limit to 1MB
       console.warn('Image data URL is too long, rejecting');
       return null; // Return null instead of a corrupted marker
     }
@@ -16,7 +16,7 @@ function cleanImageData(imageUrl) {
     // Additional validation for base64 data URLs
     try {
       // Check if it's a valid data URL format
-      const dataUrlRegex = /^data:image\/(png|jpg|jpeg|gif);base64,[A-Za-z0-9+/=]+$/;
+      const dataUrlRegex = /^data:image\/(png|jpg|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/;
       if (!dataUrlRegex.test(imageUrl)) {
         console.warn('Invalid image data URL format');
         return null;
@@ -48,15 +48,44 @@ function cleanImageData(imageUrl) {
 // POST /api/reports - Create a new report
 export async function POST(request) {
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (jsonError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      );
+    }
     
     // In a real implementation, you would validate the data here
     const { title, description, imageUrl, latitude, longitude, address, userId } = body;
     
     // Validate required fields
-    if (!title || !description || !latitude || !longitude) {
+    if (title === undefined || title === null || title === '') {
       return NextResponse.json(
-        { error: 'Title, description, latitude, and longitude are required' },
+        { error: 'Title is required' },
+        { status: 400 }
+      );
+    }
+    
+    if (description === undefined || description === null || description === '') {
+      return NextResponse.json(
+        { error: 'Description is required' },
+        { status: 400 }
+      );
+    }
+    
+    if (latitude === undefined || latitude === null) {
+      return NextResponse.json(
+        { error: 'Latitude is required' },
+        { status: 400 }
+      );
+    }
+    
+    if (longitude === undefined || longitude === null) {
+      return NextResponse.json(
+        { error: 'Longitude is required' },
         { status: 400 }
       );
     }
@@ -65,17 +94,31 @@ export async function POST(request) {
     const lat = parseFloat(latitude);
     const lng = parseFloat(longitude);
     
-    if (isNaN(lat) || isNaN(lng)) {
+    if (isNaN(lat)) {
       return NextResponse.json(
-        { error: 'Latitude and longitude must be valid numbers' },
+        { error: 'Latitude must be a valid number' },
+        { status: 400 }
+      );
+    }
+    
+    if (isNaN(lng)) {
+      return NextResponse.json(
+        { error: 'Longitude must be a valid number' },
         { status: 400 }
       );
     }
     
     // Validate latitude and longitude ranges
-    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    if (lat < -90 || lat > 90) {
       return NextResponse.json(
-        { error: 'Latitude must be between -90 and 90, longitude between -180 and 180' },
+        { error: 'Latitude must be between -90 and 90' },
+        { status: 400 }
+      );
+    }
+    
+    if (lng < -180 || lng > 180) {
+      return NextResponse.json(
+        { error: 'Longitude must be between -180 and 180' },
         { status: 400 }
       );
     }
@@ -94,16 +137,30 @@ export async function POST(request) {
     };
     
     // Validate title and description lengths
-    if (reportData.title.length < 5 || reportData.title.length > 100) {
+    if (reportData.title.length < 5) {
       return NextResponse.json(
-        { error: 'Title must be between 5 and 100 characters' },
+        { error: 'Title must be at least 5 characters long' },
         { status: 400 }
       );
     }
     
-    if (reportData.description.length < 10 || reportData.description.length > 1000) {
+    if (reportData.title.length > 100) {
       return NextResponse.json(
-        { error: 'Description must be between 10 and 1000 characters' },
+        { error: 'Title must be no more than 100 characters long' },
+        { status: 400 }
+      );
+    }
+    
+    if (reportData.description.length < 10) {
+      return NextResponse.json(
+        { error: 'Description must be at least 10 characters long' },
+        { status: 400 }
+      );
+    }
+    
+    if (reportData.description.length > 1000) {
+      return NextResponse.json(
+        { error: 'Description must be no more than 1000 characters long' },
         { status: 400 }
       );
     }
@@ -129,7 +186,7 @@ export async function POST(request) {
       const user = await dbAdapter.findUserByEmail(userId);
       
       if (user) {
-        reportData.userId = userId;
+        reportData.userId = user.id; // Use user.id instead of userId
       } else {
         // User doesn't exist, use anonymous user instead
         let anonymousUser = await dbAdapter.findUserByEmail('anonymous@civicreporter.com');

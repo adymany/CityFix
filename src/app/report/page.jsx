@@ -386,11 +386,11 @@ export default function ReportPage() {
         return;
       }
       
-      // Set canvas dimensions to a reasonable size (max 800px on longest side)
+      // Set canvas dimensions to a reasonable size (max 1200px on longest side)
       let width = video.videoWidth;
       let height = video.videoHeight;
-      const maxWidth = 800;
-      const maxHeight = 800;
+      const maxWidth = 1200;
+      const maxHeight = 1200;
       
       if (width > height) {
         if (width > maxWidth) {
@@ -410,8 +410,8 @@ export default function ReportPage() {
       // Draw video frame to canvas
       context.drawImage(video, 0, 0, width, height);
       
-      // Convert to data URL with compression (quality 0.5 = 50%)
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+      // Convert to data URL with compression (quality 0.8 = 80%)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
       setImage(dataUrl);
       
       // Stop the camera
@@ -433,8 +433,8 @@ export default function ReportPage() {
           return;
         }
         
-        // Check file size (max 3MB)
-        if (file.size > 3 * 1024 * 1024) {
+        // Check file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
           setCameraError('Image size must be less than 5MB');
           return;
         }
@@ -449,10 +449,10 @@ export default function ReportPage() {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 
-                // Calculate new dimensions (max 800px on longest side)
+                // Calculate new dimensions (max 1200px on longest side)
                 let { width, height } = img;
-                const maxWidth = 800;
-                const maxHeight = 800;
+                const maxWidth = 1200;
+                const maxHeight = 1200;
                 
                 if (width > height) {
                   if (width > maxWidth) {
@@ -472,8 +472,8 @@ export default function ReportPage() {
                 // Draw resized image
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                // Get compressed data URL (quality 0.5 = 50%)
-                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5);
+                // Get compressed data URL (quality 0.8 = 80%)
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
                 setImage(compressedDataUrl);
                 setCameraError(''); // Clear any previous errors
               } catch (imgError) {
@@ -507,8 +507,34 @@ export default function ReportPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!title || !description) {
-      setError('Please fill in all required fields.');
+    // Validate form fields before submitting
+    if (!title.trim()) {
+      setError('Please enter a title for your report.');
+      return;
+    }
+    
+    if (title.trim().length < 5) {
+      setError('Title must be at least 5 characters long.');
+      return;
+    }
+    
+    if (title.trim().length > 100) {
+      setError('Title must be no more than 100 characters long.');
+      return;
+    }
+    
+    if (!description.trim()) {
+      setError('Please enter a description for your report.');
+      return;
+    }
+    
+    if (description.trim().length < 10) {
+      setError('Description must be at least 10 characters long.');
+      return;
+    }
+    
+    if (description.trim().length > 1000) {
+      setError('Description must be no more than 1000 characters long.');
       return;
     }
     
@@ -521,18 +547,22 @@ export default function ReportPage() {
     setError('');
     
     try {
+      // Get current user ID
+      const userId = getCurrentUserId();
+      
       const response = await fetch('/api/reports', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          title,
-          description,
+          title: title.trim(),
+          description: description.trim(),
           imageUrl: image,
           latitude: location.latitude,
           longitude: location.longitude,
           address: address || null, // Include address in the request
+          userId: userId // Include user ID in the request
         }),
       });
       
@@ -540,10 +570,10 @@ export default function ReportPage() {
         // Try to parse error response as JSON, but handle case where it's not valid JSON
         try {
           const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to submit report');
+          throw new Error(errorData.error || `Failed to submit report: ${response.statusText} (${response.status})`);
         } catch (jsonError) {
           // If JSON parsing fails, use the status text or a generic error message
-          throw new Error(response.statusText || 'Failed to submit report');
+          throw new Error(`Failed to submit report: ${response.statusText} (${response.status})`);
         }
       }
       
@@ -573,7 +603,7 @@ export default function ReportPage() {
     // Check if it's a data URL (base64)
     if (url.startsWith('data:image/')) {
       // Check if it's not corrupted (not too long)
-      return url.length < 100000; // Limit to 100KB
+      return url.length < 1000000; // Limit to 1MB
     }
     // For regular URLs, we'll assume they're valid
     return true;

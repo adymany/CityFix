@@ -8,15 +8,41 @@ function cleanImageData(imageUrl) {
   // If it's a data URL, check if it's reasonable size
   if (imageUrl.startsWith('data:image/')) {
     // If it's too long, it might be corrupted
-    if (imageUrl.length > 100000) { // 100KB limit
-      console.warn('Image data URL is too long, marking as corrupted');
-      return '[CORRUPTED_DATA]';
+    if (imageUrl.length > 1000000) { // Increase limit to 1MB
+      console.warn('Image data URL is too long, rejecting');
+      return null;
     }
-    return imageUrl;
+    
+    // Additional validation for base64 data URLs
+    try {
+      // Check if it's a valid data URL format
+      const dataUrlRegex = /^data:image\/(png|jpg|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/;
+      if (!dataUrlRegex.test(imageUrl)) {
+        console.warn('Invalid image data URL format');
+        return null;
+      }
+      
+      return imageUrl;
+    } catch (error) {
+      console.warn('Error validating image data URL:', error.message);
+      return null;
+    }
   }
   
-  // For regular URLs, return as is
-  return imageUrl;
+  // For regular URLs, validate they look like URLs
+  if (imageUrl.startsWith('http')) {
+    try {
+      new URL(imageUrl); // This will throw if it's not a valid URL
+      return imageUrl;
+    } catch (error) {
+      console.warn('Invalid image URL:', imageUrl);
+      return null;
+    }
+  }
+  
+  // If it's neither a data URL nor a regular URL, it's likely corrupted
+  console.warn('Unrecognized image URL format:', imageUrl);
+  return null;
 }
 
 // GET /api/user/reports - Get reports for the current user
