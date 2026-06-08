@@ -17,9 +17,9 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:reset": "prisma migrate reset",
     "prisma:seed": "node prisma/seed.js",
-    "setup-db": "node setup-database.js",
-    "cleanup-images": "node clean-corrupted-images.js",
-    "periodic-cleanup": "node periodic-image-cleanup.js"
+    "setup-db": "node scripts/setup-database.js",
+    "cleanup-images": "node scripts/clean-corrupted-images.js",
+    "periodic-cleanup": "node scripts/periodic-image-cleanup.js"
   },
   "dependencies": {
     "@next/env": "^15.5.3",

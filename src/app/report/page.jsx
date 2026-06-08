@@ -100,6 +100,8 @@ export default function ReportPage() {
   const [mapCenter, setMapCenter] = useState([51.505, -0.09]); // Default center
   const [isMobile, setIsMobile] = useState(false);
   const [isHttps, setIsHttps] = useState(false);
+  const [facingMode, setFacingMode] = useState('environment'); // environment = back camera, user = front camera
+  const [isCameraActive, setIsCameraActive] = useState(false);
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -317,7 +319,7 @@ export default function ReportPage() {
   };
 
   // Simplified camera access - back to basics
-  const startCamera = async () => {
+  const startCamera = async (mode = facingMode) => {
     try {
       // Clear any previous camera errors
       setCameraError('');
@@ -326,7 +328,11 @@ export default function ReportPage() {
       stopMediaTracks();
       
       // Simple camera access with basic constraints
-      const constraints = { video: true };
+      const constraints = { 
+        video: { 
+          facingMode: { ideal: mode } 
+        } 
+      };
       
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       
@@ -334,23 +340,45 @@ export default function ReportPage() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
+        setIsCameraActive(true);
       }
     } catch (err) {
       console.error('Error accessing camera:', err);
-      let errorMessage = 'Could not access camera. ';
-      
-      if (err.name === 'NotAllowedError') {
-        errorMessage += 'Camera access was denied. Please allow camera access in your browser settings.';
-      } else if (err.name === 'NotFoundError' || err.name === 'OverconstrainedError') {
-        errorMessage += 'No camera found or camera not compatible.';
-      } else if (err.name === 'NotReadableError') {
-        errorMessage += 'Camera is already in use by another application.';
-      } else {
-        errorMessage += 'An unknown error occurred: ' + (err.message || 'Unknown error');
+      // Fallback to basic video constraint if facingMode fails
+      try {
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (videoRef.current) {
+          videoRef.current.srcObject = fallbackStream;
+          streamRef.current = fallbackStream;
+          setIsCameraActive(true);
+        }
+      } catch (fallbackErr) {
+        console.error('Fallback camera access failed:', fallbackErr);
+        let errorMessage = 'Could not access camera. ';
+        
+        if (err.name === 'NotAllowedError') {
+          errorMessage += 'Camera access was denied. Please allow camera access in your browser settings.';
+        } else if (err.name === 'NotFoundError' || err.name === 'OverconstrainedError') {
+          errorMessage += 'No camera found or camera not compatible.';
+        } else if (err.name === 'NotReadableError') {
+          errorMessage += 'Camera is already in use by another application.';
+        } else {
+          errorMessage += 'An unknown error occurred: ' + (err.message || 'Unknown error');
+        }
+        
+        setCameraError(errorMessage);
+        setError(errorMessage);
+        setIsCameraActive(false);
       }
-      
-      setCameraError(errorMessage);
-      setError(errorMessage);
+    }
+  };
+
+  // Toggle between front and back camera
+  const toggleCamera = async () => {
+    const nextMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(nextMode);
+    if (isCameraActive) {
+      await startCamera(nextMode);
     }
   };
 
@@ -361,6 +389,7 @@ export default function ReportPage() {
       tracks.forEach(track => track.stop());
       streamRef.current = null;
     }
+    setIsCameraActive(false);
   };
 
   // Capture image from video stream - simplified version with compression
@@ -828,7 +857,7 @@ export default function ReportPage() {
                       <>
                         <button
                           type="button"
-                          onClick={startCamera}
+                          onClick={() => startCamera(facingMode)}
                           className={`btn-pill flex items-center ${
                             isHttps 
                               ? 'btn-primary-gradient' 
@@ -838,7 +867,21 @@ export default function ReportPage() {
                           <svg className="mr-2 -ml-0.5 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm7 10a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
                           </svg>
-                          Start Camera
+                          {isCameraActive ? 'Restart Camera' : 'Start Camera'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={toggleCamera}
+                          className={`btn-pill flex items-center ${
+                            isHttps 
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-medium hover:shadow-large' 
+                              : 'bg-gray-300 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                          }`}
+                        >
+                          <svg className="mr-2 -ml-0.5 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3-3 3 3m-3-3v12" />
+                          </svg>
+                          Switch to {facingMode === 'environment' ? 'Front' : 'Back'} Camera
                         </button>
                         <button
                           type="button"
